@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Dict
+from sqlalchemy.orm import Session
+from database import engine, SessionLocal
+from models import Base, Key
 
-app = FastAPI(
-    title="Premium Whitelist API",
-    version="1.0.0"
-)
+app = FastAPI()
+
+Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,124 +16,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------
-# TEMP DATABASE
-# -----------------------------
-
-keys_db: Dict[str, dict] = {
-    "PREMIUM-123": {
-        "redeemed": False,
-        "hwid": None,
-        "user": None
-    }
-}
-
-
-# -----------------------------
-# MODELS
-# -----------------------------
-
-class RedeemRequest(BaseModel):
-    key: str
-    discord_id: str
-    hwid: str
-
-
-class ValidateRequest(BaseModel):
-    key: str
-    hwid: str
-
-
-# -----------------------------
-# ROUTES
-# -----------------------------
-
 @app.get("/")
 async def root():
     return {
-        "status": "online",
-        "service": "premium whitelist"
+        "status": "online"
     }
 
+@app.get("/keys")
+async def get_keys():
 
-@app.get("/stats")
-async def stats():
-    total_keys = len(keys_db)
+    db: Session = SessionLocal()
 
-    redeemed = sum(
-        1 for k in keys_db.values()
-        if k["redeemed"]
+    keys = db.query(Key).all()
+
+    return [
+        {
+            "key": k.key,
+            "redeemed": k.redeemed
+        }
+        for k in keys
+    ]
+
+@app.post("/create-test-key")
+async def create_test_key():
+
+    db: Session = SessionLocal()
+
+    key = Key(
+        key="PREMIUM-123"
     )
 
-    return {
-        "total_keys": total_keys,
-        "redeemed": redeemed
-    }
-
-
-@app.post("/redeem")
-async def redeem(data: RedeemRequest):
-
-    if data.key not in keys_db:
-        return {
-            "success": False,
-            "message": "Invalid key"
-        }
-
-    key_data = keys_db[data.key]
-
-    if key_data["redeemed"]:
-        return {
-            "success": False,
-            "message": "Key already redeemed"
-        }
-
-    key_data["redeemed"] = True
-    key_data["hwid"] = data.hwid
-    key_data["user"] = data.discord_id
-
-    return {
-        "success": True,
-        "message": "Key redeemed successfully"
-    }
-
-
-@app.post("/validate")
-async def validate(data: ValidateRequest):
-
-    if data.key not in keys_db:
-        return {
-            "success": False
-        }
-
-    key_data = keys_db[data.key]
-
-    if key_data["hwid"] != data.hwid:
-        return {
-            "success": False
-        }
+    db.add(key)
+    db.commit()
 
     return {
         "success": True
     }
-
-
-@app.post("/reset-hwid")
-async def reset_hwid(key: str):
-
-    if key not in keys_db:
-        return {
-            "success": False
-        }
-
-    keys_db[key]["hwid"] = None
-
-    return {
-        "success": True,
-        "message": "HWID reset"
-    }
-
-
-@app.get("/keys")
-async def get_keys():
-    return keys_db
