@@ -1,7 +1,0 @@
-fastapi
-uvicorn[standard]
-discord.py
-python-dotenv
-redis
-sqlalchemy
-psycopg2-binary
