@@ -1,2 +1,7 @@
+fastapi
+uvicorn[standard]
 discord.py
 python-dotenv
+sqlalchemy
+psycopg2-binary
+redis
